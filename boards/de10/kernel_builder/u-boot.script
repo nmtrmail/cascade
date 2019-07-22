@@ -1,0 +1,9 @@
+echo Loading the bitstream...
+fatload mmc 0:1 0x1000 soc_system.rbf;
+fpga load 0 0x1000 $filesize;
+bridge enable;
+echo Loading Linux...
+setenv mmcload 'mmc rescan; fatload mmc 0:1 0x10000 zImage; fatload mmc 0:1 0x1000 soc_system.dtb'
+setenv mmcboot 'setenv bootargs console=ttyS0,115200 root=/dev/mmcblk0p3 rw rootwait; bootz 0x10000 - 0x1000';
+run mmcload;
+run mmcboot;
