@@ -11,6 +11,7 @@ exit 1
 fi
 
 mkdir -p output_files
+chmod a+rwx output_files
 DE10_FILES=$(cd ../../src/target/core/de10/fpga; pwd)
 CASCADE_DIR=$(cd ../..;pwd)
 OUTPUT_FILES="$(cd output_files; pwd)"
@@ -23,7 +24,7 @@ docker build --rm -f "image_generator/Dockerfile" -t image_generator:latest imag
 
 echo "Build Base Bitstream..."
 docker run -v $DE10_FILES:/de10_files -v $OUTPUT_FILES:/output_files -it de10_bitstream_generator:latest bash
-exit
+
 echo "Build Linux Kernel & uBoot Image..."
 docker run -v $OUTPUT_FILES:/output_files -it kernel_builder:latest
 
