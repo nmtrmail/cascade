@@ -43,7 +43,7 @@
 
 using namespace std;
 
-namespace cascade {
+namespace cascade::de10 {
 
 De10Logic::De10Logic(Interface* interface, ModuleDeclaration* src, volatile uint8_t* addr, De10Compiler* dc) : Logic(interface), table_(addr) { 
   src_ = src;
@@ -293,6 +293,13 @@ void De10Logic::handle_tasks() {
   Evaluate eval;
   Sync sync(this);
   switch (task->get_tag()) {
+    case Node::Tag::debug_statement: {
+      const auto* ds = static_cast<const DebugStatement*>(task);
+      stringstream ss;
+      ss << ds->get_arg();
+      interface()->debug(Evaluate().get_value(ds->get_action()).to_uint(), ss.str());
+      break;
+    }
     case Node::Tag::finish_statement: {
       const auto* fs = static_cast<const FinishStatement*>(task);
       fs->accept_arg(&sync);
@@ -306,6 +313,7 @@ void De10Logic::handle_tasks() {
 
       const auto fd = eval.get_value(fs->get_fd()).to_uint();
       auto* is = get_stream(fd);
+      is->clear();
       is->flush();
       update_eofs();
 
@@ -406,6 +414,11 @@ void De10Logic::Inserter::visit(const FeofExpression* fe) {
   in_args_ = false;
 }
 
+void De10Logic::Inserter::visit(const DebugStatement* ds) {
+  de_->tasks_.push_back(ds);
+  // Don't descend, there aren't any expressions below here
+}
+
 void De10Logic::Inserter::visit(const FflushStatement* fs) {
   de_->tasks_.push_back(fs);
   in_args_ = true;
@@ -475,4 +488,4 @@ void De10Logic::Sync::visit(const Identifier* id) {
   de_->table_.read_var(r);
 }
 
-} // namespace cascade
+} // namespace cascade::de10

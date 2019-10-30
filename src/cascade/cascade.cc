@@ -46,7 +46,7 @@ Cascade::Cascade() : eval_(this), iostream(&sb_), sb_() {
   set_enable_inlining(true);
   set_open_loop_target(1);
 
-  runtime_.get_compiler()->set("de10", new De10Compiler());
+  runtime_.get_compiler()->set("de10", new de10::De10Compiler());
   runtime_.get_compiler()->set("proxy", new ProxyCompiler());
   runtime_.get_compiler()->set("sw", new SwCompiler());
 
@@ -79,8 +79,8 @@ Cascade& Cascade::set_quartus_server(const string& host, size_t port) {
   assert(!is_running_);
   auto* dc = runtime_.get_compiler()->get("de10");
   assert(dc != nullptr);
-  static_cast<De10Compiler*>(dc)->set_host(host);
-  static_cast<De10Compiler*>(dc)->set_port(port);
+  static_cast<de10::De10Compiler*>(dc)->set_host(host);
+  static_cast<de10::De10Compiler*>(dc)->set_port(port);
   return *this;
 }
 
@@ -92,38 +92,43 @@ Cascade& Cascade::set_profile_interval(size_t n) {
 
 Cascade& Cascade::set_stdin(streambuf* sb) {
   assert(!is_running_);
-  delete runtime_.rdbuf(0, sb);
+  runtime_.rdbuf(0, sb);
   return *this;
 }
 
 Cascade& Cascade::set_stdout(streambuf* sb) {
   assert(!is_running_);
-  delete runtime_.rdbuf(1, sb);
+  runtime_.rdbuf(1, sb);
   return *this;
 }
 
 Cascade& Cascade::set_stderr(streambuf* sb) {
   assert(!is_running_);
-  delete runtime_.rdbuf(2, sb);
+  runtime_.rdbuf(2, sb);
   return *this;
 }
 
 Cascade& Cascade::set_stdwarn(streambuf* sb) {
   assert(!is_running_);
-  delete runtime_.rdbuf(3, sb);
+  runtime_.rdbuf(3, sb);
   return *this;
 }
 
 Cascade& Cascade::set_stdinfo(streambuf* sb) {
   assert(!is_running_);
-  delete runtime_.rdbuf(4, sb);
+  runtime_.rdbuf(4, sb);
   return *this;
 }
 
 Cascade& Cascade::set_stdlog(streambuf* sb) {
   assert(!is_running_);
-  delete runtime_.rdbuf(5, sb);
+  runtime_.rdbuf(5, sb);
   return *this;
+}
+
+Cascade::Fd Cascade::open(streambuf* sb) {
+  assert(!is_running_);
+  return runtime_.rdbuf(sb);
 }
 
 Cascade& Cascade::run() {

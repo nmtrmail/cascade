@@ -45,9 +45,10 @@
 #include "verilog/analyze/module_info.h"
 #include "verilog/analyze/resolve.h"
 #include "verilog/ast/ast.h"
-#include "verilog/print/text/text_printer.h"
+#include "verilog/print/print.h"
 #include "verilog/program/elaborate.h"
 #include "verilog/program/inline.h"
+#include "verilog/transform/assign_unpack.h"
 #include "verilog/transform/block_flatten.h"
 #include "verilog/transform/constant_prop.h"
 #include "verilog/transform/control_merge.h"
@@ -161,9 +162,6 @@ void Module::synchronize(size_t n) {
   for (auto i = iterator(this), ie = end(); i != ie; ++i) {
     const auto ignore = (*i == this) ? (psrc_->size_items() - n) : 0;
     (*i)->compile_and_replace(ignore);
-    if (rt_->get_compiler()->error()) {
-      return;
-    }
   }
   // Synchronize subscriptions with the dataplane. Note that we do this *after*
   // recompilation.  This guarantees that the variable names used by
@@ -189,9 +187,6 @@ void Module::rebuild() {
   for (auto i = iterator(this), ie = end(); i != ie; ++i) {
     const auto ignore = (*i)->psrc_->size_items();
     (*i)->compile_and_replace(ignore);
-    if (rt_->get_compiler()->error()) {
-      return;
-    }
   }
 }
 
@@ -321,6 +316,7 @@ ModuleDeclaration* Module::regenerate_ir_source(size_t ignore) {
   const auto is_logic = (std != nullptr) && (std->get_readable_val() == "logic");
   if (is_logic) {
     ModuleInfo(md).invalidate();
+    AssignUnpack().run(md);
     IndexNormalize().run(md);
     LoopUnroll().run(md);
     DeAlias().run(md);
@@ -372,15 +368,20 @@ void Module::compile_and_replace(size_t ignore) {
   } else {
     md2 = new ModuleDeclaration(new Attributes(), new Identifier("null"));
   }
+  // Check whether the first pass compilation is sw
+  if (std->eq("logic") && !md->get_attrs()->get<String>("__target")->eq("sw")) {
+    rt_->get_compiler()->fatal("Fast-pass compilation for logic must target software!");
+    delete md;
+    delete md2;
+    return;
+  }
 
   // Fast Path. Compile and replace the original engine.  
   stringstream ss;
-  TextPrinter(ss) << "fast-pass recompilation of " << fid << " with attributes " << md->get_attrs();
+  ss << "fast-pass recompilation of " << fid << " with attributes " << md->get_attrs();
   auto* e_fast = rt_->get_compiler()->compile(engine_->get_id(), md);
   if (e_fast == nullptr) {
-    if (!rt_->get_compiler()->error()) {
-      rt_->get_compiler()->error("An unhandled error occurred during module compilation");
-    }
+    rt_->get_compiler()->fatal("Unable to complete fast-pass compilation!");
   } else {
     engine_->replace_with(e_fast);
     if (engine_->is_stub()) {
@@ -395,7 +396,7 @@ void Module::compile_and_replace(size_t ignore) {
   if (jit && (e_fast != nullptr)) {
     rt_->schedule_asynchronous(Runtime::Asynchronous([this, this_version, md2, fid]{
       stringstream ss;
-      TextPrinter(ss) << "slow-pass recompilation of " << fid << " with attributes " << md2->get_attrs();
+      ss << "slow-pass recompilation of " << fid << " with attributes " << md2->get_attrs();
       const auto str = ss.str();
 
       DeleteInitial().run(md2);

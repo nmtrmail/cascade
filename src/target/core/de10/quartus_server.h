@@ -40,6 +40,8 @@ namespace cascade {
 
 class sockstream;
 
+namespace de10 {
+
 class QuartusServer : public Thread {
   public:
     // RPC Types:
@@ -57,7 +59,6 @@ class QuartusServer : public Thread {
     QuartusServer& set_cache_path(const std::string& path);
     QuartusServer& set_quartus_path(const std::string& path);
     QuartusServer& set_port(uint32_t port);
-    QuartusServer& set_usb(const std::string& usb);
 
     bool error() const;
 
@@ -66,7 +67,6 @@ class QuartusServer : public Thread {
     std::string cache_path_;
     std::string quartus_path_;
     uint32_t port_;
-    std::string usb_;
 
     // Comoilation State:
     ThreadPool pool_;
@@ -81,9 +81,9 @@ class QuartusServer : public Thread {
     void init_cache();
     void kill_all();
     bool compile(const std::string& text);
-    void reprogram(const std::string& text);
 };
 
+} // namespace de10
 } // namespace cascade
 
 #endif

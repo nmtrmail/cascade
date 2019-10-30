@@ -40,8 +40,11 @@
 
 namespace cascade {
 
-class De10Compiler;
 class interfacestream;
+
+namespace de10 {
+
+class De10Compiler;
 
 class De10Logic : public Logic {
   public:
@@ -113,6 +116,7 @@ class De10Logic : public Logic {
         bool in_args_;
         void visit(const Identifier* id) override;
         void visit(const FeofExpression* fe) override;
+        void visit(const DebugStatement* ds) override;
         void visit(const FflushStatement* fs) override;
         void visit(const FinishStatement* fs) override;
         void visit(const FseekStatement* fs) override;
@@ -135,6 +139,7 @@ class De10Logic : public Logic {
     };
 };
 
+} // namespace de10
 } // namespace cascade
 
 #endif

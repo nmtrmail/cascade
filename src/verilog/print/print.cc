@@ -28,29 +28,39 @@
 // OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef CASCADE_SRC_TARGET_CORE_DE10_PASS_TRIGGER_RESCHEDULE_H
-#define CASCADE_SRC_TARGET_CORE_DE10_PASS_TRIGGER_RESCHEDULE_H
+#include "verilog/print/print.h"
 
-#include "verilog/ast/visitors/editor.h"
+#include <cassert>
+#include <iostream>
+#include "verilog/ast/ast.h"
+#include "verilog/print/term/term_printer.h"
+#include "verilog/print/text/text_printer.h"
+
+using namespace std;
 
 namespace cascade {
 
-// Pass 5: 
-// 
-// Replace event controls with native clock driven checks
+const int format_idx_ = ios_base::xalloc();
 
-class TriggerReschedule : public Editor {
-  public:
-    TriggerReschedule();
-    ~TriggerReschedule() override = default;
+ostream& operator<<(ostream& os, const Format fmt) {
+  os.iword(format_idx_) = static_cast<long>(fmt); 
+  return os;
+}
 
-  private:
-    void edit(AlwaysConstruct* ac) override;
-
-    Identifier* to_guard(const Event* e) const;
-};
+ostream& operator<<(ostream& os, const Node* n) {
+  const auto fmt = static_cast<Format>(os.iword(format_idx_));
+  switch (fmt) {
+    case text:
+      TextPrinter(os) << n;
+      break;
+    case color:
+      TermPrinter(os) << n;
+      break;
+    default:
+      assert(false);
+      break;
+  }
+  return os;
+}
 
 } // namespace cascade
-
-#endif
-

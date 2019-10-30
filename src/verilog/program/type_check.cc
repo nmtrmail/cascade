@@ -40,7 +40,7 @@
 #include "verilog/analyze/resolve.h"
 #include "verilog/ast/ast.h"
 #include "verilog/parse/parser.h"
-#include "verilog/print/text/text_printer.h"
+#include "verilog/print/print.h"
 #include "verilog/program/elaborate.h"
 #include "verilog/program/program.h"
 
@@ -264,28 +264,28 @@ void TypeCheck::warn(const string& s, const Node* n) {
 
   auto* ptr = n;
   if (decl_check_) {
-    TextPrinter(ss) << "In module declaration ";
+    ss << "In module declaration ";
   } else if (instantiation_ != nullptr) {
-    TextPrinter(ss) << "In module instantiation ";
+    ss << "In module instantiation ";
     ptr = instantiation_;
   } else {
-    TextPrinter(ss) << "In module item ";
+    ss << "In module item ";
   }
 
   if (parser_ == nullptr) {
-    TextPrinter(ss) << "in <unable to access location --- contact developers>: ";
+    ss << "in <unable to access location --- contact developers>: ";
   } else {
     const auto loc = parser_->get_loc(ptr);
     if (loc.first == "<top>") {
-      TextPrinter(ss) << "in final line of user input: ";
+      ss << "in final line of user input: ";
     } else {
-      TextPrinter(ss) << "in " << loc.first << " on line " << loc.second << ": ";
+      ss << "in " << loc.first << " on line " << loc.second << ": ";
     }
   }
   
-  TextPrinter(ss) << ptr << "\n" << s;
+  ss << ptr << "\n" << s;
   if (ptr != n) {
-    TextPrinter(ss) << ", see previous warnings for more information";
+    ss << ", see previous warnings for more information";
   }
 
   log_->warn(ss.str());
@@ -296,28 +296,28 @@ void TypeCheck::error(const string& s, const Node* n) {
 
   auto* ptr = n;
   if (decl_check_) {
-    TextPrinter(ss) << "In module declaration ";
+    ss << "In module declaration ";
   } else if (instantiation_ != nullptr) {
-    TextPrinter(ss) << "In module instantiation ";
+    ss << "In module instantiation ";
     ptr = instantiation_;
   } else {
-    TextPrinter(ss) << "In module item ";
+    ss << "In module item ";
   }
 
   if (parser_ == nullptr) {
-    TextPrinter(ss) << "in <unable to access location --- contact developers>: ";
+    ss << "in <unable to access location --- contact developers>: ";
   } else {
     const auto loc = parser_->get_loc(ptr);
     if (loc.first == "<top>") {
-      TextPrinter(ss) << "in final line of user input: ";
+      ss << "in final line of user input: ";
     } else {
-      TextPrinter(ss) << "in " << loc.first << " on line " << loc.second << ": ";
+      ss << "in " << loc.first << " on line " << loc.second << ": ";
     }
   }
   
-  TextPrinter(ss) << ptr << "\n" << s;
+  ss << ptr << "\n" << s;
   if (ptr != n) {
-    TextPrinter(ss) << ", see previous warnings for more information";
+    ss << ", see previous warnings for more information";
   }
 
   log_->error(ss.str());
@@ -429,6 +429,14 @@ void TypeCheck::visit(const GenerateBlock* gb) {
   gb->accept_items(this);
 }
 
+void TypeCheck::visit(const AlwaysConstruct* ac) {
+  if (!ac->get_stmt()->is(Node::Tag::timing_control_statement)) {
+    return error("Cascade does not currently support the use of always blocks which don't contain timing control statements", ac);
+  }
+  // RECURSE:
+  Visitor::visit(ac);
+}
+
 void TypeCheck::visit(const ModuleDeclaration* md) {
   // CHECK: implicit or explict ports that are not simple ids
   for (auto i = md->begin_ports(), ie = md->end_ports(); i != ie; ++i) {
@@ -490,36 +498,36 @@ void TypeCheck::visit(const ContinuousAssign* ca) {
   net_lval_ = false;
   ca->accept_rhs(this);
 
-  const auto* l = Resolve().get_resolution(ca->get_lhs());
-  if (l == nullptr) {
-    return;
-  }
-
-  if (!l->get_parent()->is(Node::Tag::net_declaration)) {
-    error("Continuous assignments are only permitted for variables with type wire", ca);
-  }
-
-  // CHECK: Recursive assignment
-  // Iterate over identifiers in the RHS
   ReadSet rs(ca->get_rhs());
-  for (auto i = rs.begin(), ie = rs.end(); i != ie; ++i) {
-    if ((*i)->is(Node::Tag::identifier)) {
-      // If this identifier resolves to the left-hand side, this might be a
-      // recursive definition.
-      const auto* id = static_cast<const Identifier*>(*i);
-      const auto* r = Resolve().get_resolution(id);
-      if ((r == nullptr) || (r != l)) {
-        continue;
-      }
+  for (auto i = ca->begin_lhs(), ie = ca->end_lhs(); i != ie; ++i) {
+    const auto* l = Resolve().get_resolution(*i);
+    if (l == nullptr) {
+      return;
+    }
+    if (!l->get_parent()->is(Node::Tag::net_declaration)) {
+      error("Continuous assignments are only permitted for variables with type wire", ca);
+    }
 
-      // If both sides are scalar, it's definitely recursive.
-      if (l->empty_dim() && id->empty_dim()) {
-        error("Cannot assign a wire to itself", ca);
-      } 
-      // The alternative is more complicated. And there are some cases we can
-      // check statically, but for now let's just emit a blanket warning.
-      else {
-        warn("Found a potentially zero-time assignment from a variable to iteself", ca);
+    // CHECK: Recursive assignment
+    for (auto j = rs.begin(), je = rs.end(); j != je; ++j) {
+      if ((*j)->is(Node::Tag::identifier)) {
+        // If this identifier resolves to the left-hand side, this might be a
+        // recursive definition.
+        const auto* id = static_cast<const Identifier*>(*j);
+        const auto* r = Resolve().get_resolution(id);
+        if ((r == nullptr) || (r != l)) {
+          continue;
+        }
+
+        // If both sides are scalar, it's definitely recursive.
+        if (l->empty_dim() && id->empty_dim()) {
+          error("Cannot assign a wire to itself", ca);
+        } 
+        // The alternative is more complicated. And there are some cases we can
+        // check statically, but for now let's just emit a blanket warning.
+        else {
+          warn("Found a potentially zero-time assignment from a variable to iteself", ca);
+        }
       }
     }
   }
@@ -675,9 +683,11 @@ void TypeCheck::visit(const BlockingAssign* ba) {
   // RECURSE: 
   Visitor::visit(ba);
   // CHECK: Target must be register or integer
-  const auto* r = Resolve().get_resolution(ba->get_lhs());
-  if ((r != nullptr) && !r->get_parent()->is(Node::Tag::reg_declaration)) {
-    error("Found a blocking assignments to a variable with type other than reg", ba);
+  for (auto i = ba->begin_lhs(), ie = ba->end_lhs(); i != ie; ++i) {
+    const auto* r = Resolve().get_resolution(*i);
+    if ((r != nullptr) && !r->get_parent()->is(Node::Tag::reg_declaration)) {
+      error("Found a blocking assignments to a variable with type other than reg", ba);
+    }
   }
 }
 
@@ -685,9 +695,11 @@ void TypeCheck::visit(const NonblockingAssign* na) {
   // RECURSE:
   Visitor::visit(na);
   // CHECK: Target must be register or integer
-  const auto* r = Resolve().get_resolution(na->get_lhs());
-  if ((r != nullptr) && !r->get_parent()->is(Node::Tag::reg_declaration)) {
-    error("Found a non-blocking assignments to a variable with type other than reg", na);
+  for (auto i = na->begin_lhs(), ie = na->end_lhs(); i != ie; ++i) {
+    const auto* r = Resolve().get_resolution(*i);
+    if ((r != nullptr) && !r->get_parent()->is(Node::Tag::reg_declaration)) {
+      error("Found a non-blocking assignments to a variable with type other than reg", na);
+    }
   }
 }
 
@@ -712,6 +724,11 @@ void TypeCheck::visit(const RepeatStatement* rs) {
 void TypeCheck::visit(const WhileStatement* ws) {
   warn("Cascade attempts to statically unroll all loop statements and may hang if it is not possible to do so", ws);
   Visitor::visit(ws);
+}
+
+void TypeCheck::visit(const DebugStatement* ds) {
+  // Don't descend beyond here
+  (void) ds;
 }
 
 void TypeCheck::visit(const GetStatement* gs) {
@@ -741,19 +758,13 @@ void TypeCheck::visit(const PutStatement* ps) {
   ps->accept_expr(this);
 }
 
-void TypeCheck::visit(const RestartStatement* rs) {
-  (void) rs;
-  // Does nothing. Don't descend on arg which is guaranteed to be a string.
-}
-
-void TypeCheck::visit(const RetargetStatement* rs) {
-  (void) rs;
-  // Does nothing. Don't descend on arg which is guaranteed to be a string.
-}
-
-void TypeCheck::visit(const SaveStatement* ss) {
-  (void) ss;
-  // Does nothing. Don't descend on arg which is guaranteed to be a string.
+void TypeCheck::visit(const VariableAssign* va) {
+  // RECURSE:
+  Visitor::visit(va);
+  // CHECK: Aassignments which target concatenations
+  if (va->size_lhs() > 1) {
+    return error("Cascade does not currently support the use of variable assigns which target concatenations!", va);
+  }
 }
 
 void TypeCheck::check_width(const RangeExpression* re) {

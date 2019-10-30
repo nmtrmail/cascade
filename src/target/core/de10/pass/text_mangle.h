@@ -36,7 +36,7 @@
 #include "verilog/ast/visitors/builder.h"
 #include "verilog/ast/visitors/visitor.h"
 
-namespace cascade {
+namespace cascade::de10 {
 
 class De10Logic;
 
@@ -63,7 +63,9 @@ class TextMangle : public Builder {
     ModuleItem* build(const RegDeclaration* rd) override;
     ModuleItem* build(const PortDeclaration* pd) override;
     Expression* build(const FeofExpression* fe) override;
+    Statement* build(const BlockingAssign* ba) override;
     Statement* build(const NonblockingAssign* na) override;
+    Statement* build(const DebugStatement* ds) override;
     Statement* build(const FflushStatement* fs) override;
     Statement* build(const FinishStatement* fs) override;
     Statement* build(const FseekStatement* fs) override;
@@ -76,6 +78,6 @@ class TextMangle : public Builder {
     Expression* get_table_range(const Identifier* r, const Identifier* i);
 };
 
-} // namespace cascade
+} // namespace cascade::de10
 
 #endif

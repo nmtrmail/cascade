@@ -134,6 +134,8 @@ class Runtime : public Thread {
 
     // System Task Interface:
     //
+    // Schedules a $debug() at the end of this step and returns immediately.
+    void debug(uint32_t action, const std::string& arg);
     // Executes a $finish() and returns immediately.
     void finish(uint32_t arg);
     // Schedules a $restart() at the end of this step and returns immediately.
@@ -145,11 +147,13 @@ class Runtime : public Thread {
 
     // Stream I/O Interface:
     //
+    // Appends a new entry to the stream table and returns its fd
+    FId rdbuf(std::streambuf* sb);
+    // Replaces an entry in the stream table 
+    void rdbuf(FId id, std::streambuf* sb);
     // Returns an entry in the stream table
     std::streambuf* rdbuf(FId id) const;
-    // Replaces an entry in the stream table and returns its previous value
-    std::streambuf* rdbuf(FId id, std::streambuf* sb);
-    // Creates an entry in the stream table 
+    // Creates an entry in the stream table which is owned by the runtime.
     FId fopen(const std::string& path, uint8_t mode);
     // Streambuf operators:
     int32_t in_avail(FId id);
@@ -210,7 +214,9 @@ class Runtime : public Thread {
     uint64_t logical_time_;
 
     // Stream Table:
-    std::vector<std::streambuf*> streambufs_;
+    // Tracks streambufs and whether they are owned by the runtime (and can be
+    // destroyed on teardown)
+    std::vector<std::pair<std::streambuf*, bool>> streambufs_;
 
     // Implements the semantics of the Verilog Simulation Reference Model and
     // services interrupts between logical simulation steps.
@@ -271,6 +277,25 @@ class Runtime : public Thread {
     void log_event(const std::string& type, Node* n = nullptr);
     // Dumps the current virtual clock frequency to stdlog
     void log_freq();
+
+    // Debug Helpers:
+    //
+    // Resolves an id in the program. Returns nullptr on failure.
+    const Node* resolve(const std::string& arg);
+    // Prints a code listing for n.
+    void list(const Node* n);
+    // Prints the scopes in n. This method is undefined for ids which don't
+    // point to scopes.
+    void showscopes(const Node* n);
+    // Prints the scopes in and below n. This method is undefined for ids which
+    // don't point to scopes.
+    void recursive_showscopes(const Node* n);
+    // Prints info for n if n is a variable. This method is undefined for ids
+    // which don't point to variables.
+    void showvars(const Identifier* id);
+    // Prints info for all of the variables below n. This method is undefined
+    // for ids which don't point to scopes.
+    void recursive_showvars(const Node* n);
 
     // Time Keeping Helpers:
     //

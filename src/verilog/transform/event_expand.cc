@@ -36,7 +36,7 @@
 #include "verilog/analyze/read_set.h"
 #include "verilog/analyze/resolve.h"
 #include "verilog/ast/ast.h"
-#include "verilog/print/text/text_printer.h"
+#include "verilog/print/print.h"
 
 using namespace std;
 
@@ -68,7 +68,7 @@ void EventExpand::edit(TimingControlStatement* tcs) {
       assert(r != nullptr);
 
       stringstream ss;
-      TextPrinter(ss) << r;
+      ss << r;
       reads.insert(make_pair(ss.str(), r));
     }
   }
@@ -76,7 +76,9 @@ void EventExpand::edit(TimingControlStatement* tcs) {
   // Create a new timing control with an explicit list
   auto* ctrl = new EventControl();
   for (auto& r : reads) {
-    ctrl->push_back_events(new Event(Event::Type::EDGE, r.second->clone()));
+    auto* e = r.second->clone();
+    e->purge_dim();
+    ctrl->push_back_events(new Event(Event::Type::EDGE, e));
   }
   tcs->replace_ctrl(ctrl);
 }
